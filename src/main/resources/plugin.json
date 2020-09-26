@@ -1,0 +1,8 @@
+{
+  "name": "ChunkyMetrics",
+  "author": "Stormboomer",
+  "main": "de.stormboomer.chunky.plugin.MetricPlugin",
+  "version": "0.1",
+  "targetVersion": "2.2",
+  "description": "Collecting Metrics."
+}
