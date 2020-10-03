@@ -27,10 +27,21 @@ public class MetricPlugin implements Plugin {
     public static Path configPath = Paths.get(PersistentSettings.settingsDirectory().getAbsolutePath(), "metric_settings.json");
 
     public static MetricConfig config = null;
-    public Process process;
-    public SystemInfo systemInfo = new SystemInfo();
-    public OperatingSystem os;
-    public long startTime;
+    public static SystemInfo systemInfo;
+    public static OperatingSystem os;
+
+    private static Object startTimeLock = new Object();
+    public static void setStartTime(long st){
+        synchronized (startTimeLock){
+            startTime = st;
+        }
+    }
+    public static long getStartTime(){
+        synchronized (startTimeLock){
+            return startTime;
+        }
+    }
+    private static long startTime;
 
     public MetricConfig getMetricConfig() throws IOException {
         if(config != null){
@@ -39,12 +50,15 @@ public class MetricPlugin implements Plugin {
         File configFile = new File(configPath.toAbsolutePath().toString());
         MetricConfig cfg = new MetricConfig();
         if(!configFile.exists()){
-            String jsonConfig = jsonHelper.toJson(cfg);
+           /* String jsonConfig = jsonHelper.toJson(cfg);
 
             Writer out = new BufferedWriter(new OutputStreamWriter(
                     new FileOutputStream(configFile.getAbsolutePath()), characterEncoding));
             out.write(jsonConfig);
             out.close();
+
+            */
+            cfg.save();
         }else if(configFile.exists() && !configFile.isDirectory()){
             byte[] configFileBytes = Files.readAllBytes(configPath.toAbsolutePath());
             String jsonConfig = new String(configFileBytes, characterEncoding);
@@ -62,11 +76,11 @@ public class MetricPlugin implements Plugin {
     @Override
     public void attach(Chunky chunky) {
         this.chunky = chunky;
-        startTime = new Date().getTime();
+        setStartTime(new Date().getTime());
         try{
             //Log.info("Attached to chunky BLA " + configPath.toAbsolutePath());
             getMetricConfig();
-
+            systemInfo = new SystemInfo();
             os = systemInfo.getOperatingSystem();
             Logger.debug("Current PID: " + os.getProcessId());
             //Logger.info(config.enableMetrics + " - " + config.enableMetricsOnline);

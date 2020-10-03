@@ -6,6 +6,9 @@ import de.stormboomer.chunky.plugin.models.MetricStat;
 import oshi.SystemInfo;
 import oshi.software.os.OSProcess;
 import se.llbit.chunky.PersistentSettings;
+import se.llbit.json.JsonObject;
+import se.llbit.json.JsonString;
+import se.llbit.json.JsonValue;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,12 +60,11 @@ public class MetricCollector {
     private List<MetricStat> allStats = new ArrayList<>();
     public void saveStat(MetricStat stat){
         Path metricFolder = Paths.get(PersistentSettings.settingsDirectory().getAbsolutePath(), "metric_storage");
-        Path metricFile = Paths.get(PersistentSettings.settingsDirectory().getAbsolutePath(), "metric_storage", "metrics." + plugin.startTime +".json");
+        Path metricFile = Paths.get(PersistentSettings.settingsDirectory().getAbsolutePath(), "metric_storage", "metrics." + plugin.getStartTime() +".json");
         File metricFolderFile = new File(metricFolder.toAbsolutePath().toString());
         if(!metricFolderFile.exists() || !metricFolderFile.isDirectory()){
             metricFolderFile.mkdir();
         }
-
 
         try {
             allStats.add(stat);
@@ -86,12 +88,19 @@ public class MetricCollector {
             e.printStackTrace();
         }
     }
+    private long lastRun = 0;
     public void start(){
         Thread MetricCollectorThread = new Thread(){
             public void run(){
                 hwInfo = new HardwareInfo(plugin.systemInfo);
+
+
+
                 try{
+                    MetricPlugin.config.save();
                     MetricDataSender.registerPC(hwInfo);
+                    MetricPlugin.config.infoapi = MetricPlugin.config.api + hwInfo.os.ComputerID;
+                    MetricPlugin.config.save();
                 }catch(Exception ex){
                     if(MetricPlugin.config.logLevel > 6){
                         ex.printStackTrace();
@@ -101,6 +110,27 @@ public class MetricCollector {
                 while(true){
                     if(isEnabled()){
                         MetricStat stat = collectStats();
+
+                        if(lastRun != stat.RunNumber){
+                            lastRun = stat.RunNumber;
+                            JsonObject sceneObj = plugin.chunky.getSceneManager().getScene().toJson();
+                            Integer chunkListSize = sceneObj.get("chunkList").asArray().elements.size();
+                            Integer entitiesSize = sceneObj.get("entities").asArray().elements.size();
+                            Integer actorsSize = sceneObj.get("actors").asArray().elements.size();
+
+                            sceneObj.set("chunkList", new JsonString(""+chunkListSize));
+                            sceneObj.set("entities", new JsonString(""+entitiesSize));
+                            sceneObj.set("actors", new JsonString(""+actorsSize));
+                            sceneObj.remove("world");
+
+                            String sceneString = sceneObj.toString();
+
+                            try {
+                                MetricDataSender.registerScene(hwInfo.os.ComputerID, stat.RunNumber, sceneString, se.llbit.chunky.main.Version.getVersion());
+                            } catch (IOException ex) {
+                                ex.printStackTrace();
+                            }
+                        }
                         saveStat(stat);
                         try{
                             MetricDataSender.sendStats(hwInfo.os.ComputerID, stat);
